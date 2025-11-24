@@ -17,17 +17,17 @@ FetchContent_MakeAvailable(ftxui)
 # --- LIBRARY (CORE) ---
 file(GLOB_RECURSE CORE_SOURCES 
     CONFIGURE_DEPENDS 
-    "core/src/*.cpp"
+    "src/*.cpp"
 )
 
 add_library(nomai_core ${CORE_SOURCES})
 
-target_include_directories(nomai_core PUBLIC core/include)
+target_include_directories(nomai_core PUBLIC include)
 
 # --- APP EXECUTABLE ---
-add_executable(nomai_app src/main.cpp)
+add_executable(nomai tests/main.cpp)
 
-target_link_libraries(nomai_app PRIVATE 
+target_link_libraries(nomai PRIVATE 
     nomai_core
     ftxui::screen
     ftxui::dom
