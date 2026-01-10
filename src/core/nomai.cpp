@@ -1,13 +1,4 @@
-#pragma once
-
-#include <iostream>
-#include <string>
-#include <vector>
-#include <fstream>
-#include <filesystem>
-#include <nlohmann/json.hpp>
-
-#include "project.hpp"
+#include "nomai/core/nomai.hpp"
 
 namespace nomai {
     namespace fs = std::filesystem;
@@ -135,6 +126,33 @@ namespace nomai {
         outFile << outJson.dump(4);
         
         return true;
+    }
+
+    std::vector<Project> getRegisteredProjects() {
+        fs::path registryPath = getRegistryPath();
+        json registryJson;
+        std::vector<Project> projectsVector;
+
+        if (!fs::exists(registryPath)) {
+            std::cerr << "[Error] Registry file does not exist." << std::endl;
+            return projectsVector;
+        }
+
+        std::ifstream registryFile(registryPath);
+        try {
+            registryFile >> registryJson;
+        } catch (json::parse_error& e) {
+            std::cerr << "[Error] Corrupted registry." << std::endl;
+            return projectsVector;
+        }
+
+        if (!registryJson.is_array()) {
+            std::cerr << "[Error] Invalid registry format." << std::endl;
+            return projectsVector;
+        }
+
+        projectsVector = registryJson.get<std::vector<Project>>();
+        return projectsVector;
     }
 }
 

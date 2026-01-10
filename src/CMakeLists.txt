@@ -1,8 +1,5 @@
-# Coleta de arquivos
-
-set(NOMAI_SOURCES
-    main.cpp
-)
+# Coleta recursivamente todos os arquivos .cpp na pasta atual e subpastas
+file(GLOB_RECURSE NOMAI_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 
 add_executable(nomai ${NOMAI_SOURCES})
 

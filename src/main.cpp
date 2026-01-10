@@ -3,15 +3,20 @@
 #include <string>
 #include <filesystem>
 
-#include "core/nomai.hpp"
-#include "core/project.hpp"
+#include "nomai/core/nomai.hpp"
+#include "nomai/core/project.hpp"
+#include "nomai/tui/tui.hpp"
 
 bool handleArguments(int argc, char* argv[]);
 bool isFlag(const char* arg);
 
 int main(int argc, char* argv[]) {
-    handleArguments(argc, argv);
     
+    if (handleArguments(argc, argv)) {
+        nomai::Tui app;
+        app.run();
+    }
+
     return 0;
 }
 
@@ -39,15 +44,21 @@ bool handleArguments(int argc, char* argv[]) {
 
         for (const auto& flag : flags) {
             if (flag == "-h" || flag == "--help") {
-                std::cout << "-v : Get current version." << std::endl;
-                return 0;
-
-            } else if (flag == "-v" || flag == "--version") {
-                std::cout << "Version 1.0.0" << std::endl;
+                std::cout << "-h / --help: Show this help message." << std::endl;
+                std::cout << "-v / --version: Get current version." << std::endl;
+                std::cout << "-s / --setup: Setup nomai environment." << std::endl;
+                std::cout << "-a / --add: Add a new project." << std::endl;
+                std::cout << "-b / --batch: Recursively add all projects in a directory." << std::endl;
+                std::cout << "-r / --remove: Remove a project." << std::endl;
+                std::cout << "-c / --cascade: Recursively remove all projects in a directory." << std::endl;
                 return 0;
 
             } else if (flag == "-s" || flag == "--setup") {
                 nomai::setup();
+                return 0;
+
+            } else if (flag == "-d" || flag == "--default") {
+                std::cout << "Set default setting." << std::endl;
                 return 0;
 
             } else if (flag == "-a" || flag == "--add") {
@@ -110,6 +121,29 @@ bool handleArguments(int argc, char* argv[]) {
                     return 1;
                 }
                 return 1;
+
+            } else if (flag == "-c" || flag == "--cascade") {
+                if (target.empty()) {
+                    std::cout << "Error: No target specified for removal." << std::endl;
+                    return 1;
+                }
+
+                if (!target.has_filename()) {
+                    target = target.parent_path();
+                }
+
+                for (auto entry : fs::directory_iterator(target)) {
+                    if (entry.is_directory()) {
+                        if (nomai::removeProject(entry.path().string())) {
+                            std::cout << "Project removed successfully: " << entry.path() << std::endl;
+                        } else {
+                            std::cout << "Failed to remove project: " << entry.path() << std::endl;
+                        }
+                    }
+                }
+
+                return 0;
+                
             } else {
                 std::cout << "Unknown flag: " << flag << std::endl;
                 return 1;
@@ -117,11 +151,10 @@ bool handleArguments(int argc, char* argv[]) {
         }
     }
     
-    return 0;
+    return 1;
 };
 
-bool isFlag(const char* arg)
-{
+bool isFlag(const char* arg) {
     std::string strArg(arg);
     return strArg.rfind("-", 0) == 0;
 };
