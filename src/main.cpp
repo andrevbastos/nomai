@@ -1,3 +1,15 @@
+/*
+TODO
+    Projects TUI configuration
+    Jaro-Winkler
+    Prioritized matcher
+    Base project templates
+    Projects tagging
+    Process launcher
+    Git context reader
+    Bye messages
+*/
+
 #include <iostream>
 #include <vector>
 #include <string>
