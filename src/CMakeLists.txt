@@ -1,18 +1,25 @@
-# Coleta recursivamente todos os arquivos .cpp na pasta atual e subpastas
-file(GLOB_RECURSE NOMAI_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+# Coleta todos os sources, EXCETO o main.cpp
+file(GLOB_RECURSE NOMAI_LIB_SOURCES 
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/util/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tui/*.cpp" 
+)
 
-add_executable(nomai ${NOMAI_SOURCES})
+# Cria uma biblioteca estática com a lógica do Nomai
+add_library(nomai_core STATIC ${NOMAI_LIB_SOURCES})
 
-# Diretórios de Include
-target_include_directories(nomai PRIVATE
+target_include_directories(nomai_core PUBLIC
     ${PROJECT_SOURCE_DIR}/include
 )
 
-# Linkagem de Dependências
-target_link_libraries(nomai PRIVATE
+target_link_libraries(nomai_core PUBLIC
     ftxui::screen
     ftxui::dom
     ftxui::component
     nlohmann_json::nlohmann_json
     fmt::fmt
 )
+
+# O Executável final apenas linka com o core e adiciona o main.cpp
+add_executable(nomai main.cpp)
+target_link_libraries(nomai PRIVATE nomai_core)

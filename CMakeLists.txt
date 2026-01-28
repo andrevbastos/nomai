@@ -33,5 +33,5 @@ include(Dependencies)
 add_subdirectory(src)
 
 # Testes
-# enable_testing()
-# add_subdirectory(tests)
+enable_testing()
+add_subdirectory(tests)

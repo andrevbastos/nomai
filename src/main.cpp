@@ -1,8 +1,6 @@
 /*
 TODO
     Projects TUI configuration
-    Jaro-Winkler
-    Prioritized matcher
     Base project templates
     Projects tagging
     Process launcher
@@ -18,6 +16,8 @@ TODO
 #include "nomai/core/nomai.hpp"
 #include "nomai/core/project.hpp"
 #include "nomai/tui/tui.hpp"
+#include "nomai/util/matcher.hpp"
+#include "nomai/util/frecency.hpp"
 
 bool handleArguments(int argc, char* argv[]);
 bool isFlag(const char* arg);
@@ -37,7 +37,7 @@ bool handleArguments(int argc, char* argv[]) {
 
     if (argc >= 1) {
         std::vector<std::string> flags;
-        fs::path target = "";
+        std::string target = "";
 
         for (int i = 1; i < argc; ++i) {
             std::string arg(argv[i]);
@@ -46,12 +46,38 @@ bool handleArguments(int argc, char* argv[]) {
                 flags.push_back(arg);
             } else {
                 if (target.empty()) {
-                    target = fs::path(argv[i]);
+                    target = argv[i];
                 } else {
                     std::cout << "Unexpected argument: " << argv[i] << std::endl;
                     return 1;
                 }
             }
+        }
+
+        if (flags.empty()) {
+            if (target.empty()) {
+                std::cout << "Error: No target specified to run." << std::endl;
+                return 1;
+            }
+
+            fs::path possiblePath(target);
+
+            bool isPath = false;
+            if (fs::exists(possiblePath) && fs::is_directory(possiblePath)) {
+                isPath = true;
+            } else if (target.find(fs::path::preferred_separator) != std::string::npos || target.find('/') != std::string::npos) {
+                isPath = true;
+            }
+
+            nomai::Project projectToRun;
+
+            if (isPath) projectToRun = nomai::closestPathMatch(target, nomai::getRegisteredProjects());
+            else projectToRun = nomai::closestNameMatch(target, nomai::getRegisteredProjects());
+            
+            nomai::rankUpProject(projectToRun);
+            nomai::runProjectWorkspace(projectToRun);
+
+            return 0;
         }
 
         for (const auto& flag : flags) {
@@ -79,10 +105,12 @@ bool handleArguments(int argc, char* argv[]) {
                     return 1;
                 }
 
-                if (!target.has_filename()) {
-                    target = target.parent_path();
+                fs::path targetPath(target);
+
+                if (!targetPath.has_filename()) {
+                    targetPath = targetPath.parent_path();
                 }
-                nomai::Project newProject(target.filename().string(), target.string(), "default_ide");
+                nomai::Project newProject(targetPath.filename().string(), targetPath.string(), 50, std::chrono::system_clock::now(), "code");
                 
                 if (nomai::registerProject(newProject)) {
                     std::cout << "Project registered successfully: " << target << std::endl;
@@ -105,7 +133,7 @@ bool handleArguments(int argc, char* argv[]) {
 
                 for (auto entry : fs::directory_iterator(target)) {
                     if (entry.is_directory()) {
-                        nomai::Project newProject(entry.path().filename().string(), entry.path().string(), "default_ide");
+                        nomai::Project newProject(entry.path().filename().string(), entry.path().string(), 50, std::chrono::system_clock::now(), "code");
                         if (nomai::registerProject(newProject)) {
                             std::cout << "Project registered successfully: " << entry.path() << std::endl;
                         } else {
@@ -121,11 +149,12 @@ bool handleArguments(int argc, char* argv[]) {
                     return 1;
                 }
 
-                if (!target.has_filename()) {
-                    target = target.parent_path();
+                fs::path targetPath(target);
+                if (!targetPath.has_filename()) {
+                    targetPath = targetPath.parent_path();
                 }
 
-                if (nomai::removeProject(target.string())) {
+                if (nomai::removeProject(targetPath.string())) {
                     std::cout << "Project removed successfully: " << target << std::endl;
                     return 0;
                 } else {
@@ -140,8 +169,10 @@ bool handleArguments(int argc, char* argv[]) {
                     return 1;
                 }
 
-                if (!target.has_filename()) {
-                    target = target.parent_path();
+                fs::path targetPath(target);
+
+                if (!targetPath.has_filename()) {
+                    targetPath = targetPath.parent_path();
                 }
 
                 for (auto entry : fs::directory_iterator(target)) {
