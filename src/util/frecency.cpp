@@ -2,26 +2,34 @@
 
 namespace nomai {
     void rankUpProject(const Project& project) {
-        Project updatedProject = project;
-
-        if (updatedProject.getRank() > 500) {
+        if (project.getRank() >= 100) {
             balanceProjectRanks();
         }
-        updatedProject.setRank(project.getRank() + 10);
 
-        updateRegisteredProject(updatedProject);
+        std::vector<Project> projects = getRegisteredProjects();
+        
+        for (auto& p : projects) {
+            if (p.getPath() == project.getPath()) {
+                p.setRank(p.getRank() + 10);
+                p.updateLastAccess();
+                break;
+            }
+        }
+
+        updateAllRegisteredProjects(projects);
     };
 
-    void applyRankDecay(std::vector<Project>& projects) {
-        if (projects.empty()) return;
+    std::vector<Project> applyRankDecay(std::vector<Project>& projects) {
+        if (projects.empty()) return projects;
         for (auto& p : projects) {
             p.setRank((int)std::floor(p.getRank() * 0.9));
         }
+        return projects;
     }
 
     void balanceProjectRanks() {
         std::vector<Project> projects = getRegisteredProjects();
-        applyRankDecay(projects);
+        projects = applyRankDecay(projects);
         updateAllRegisteredProjects(projects);
     }
 }

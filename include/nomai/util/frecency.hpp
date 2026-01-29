@@ -6,6 +6,6 @@
 
 namespace nomai {
     void rankUpProject(const Project& project);
-    void applyRankDecay(std::vector<Project>& projects);
+    std::vector<Project> applyRankDecay(std::vector<Project>& projects);
     void balanceProjectRanks();
 }

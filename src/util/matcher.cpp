@@ -10,9 +10,12 @@ namespace nomai {
         float bestScore = -1.0f;
         for (const auto& p : projects) {
             float score = jaroWinklerDistance(target, p.getName());
-            if (bestMatch.empty() || score > bestScore) {
-                bestMatch = {p};
+            
+            if (score > bestScore) {
                 bestScore = score;
+                bestMatch = {p};
+            } else if (std::abs(score - bestScore) < 0.0001f) { 
+                bestMatch.push_back(p);
             }
         }
 
@@ -45,9 +48,12 @@ namespace nomai {
         float bestScore = -1.0f;
         for (const auto& p : projects) {
             float score = jaroWinklerDistance(target, p.getPath());
-            if (bestMatch.empty() || score > bestScore) {
-                bestMatch = {p};
+            
+            if (score > bestScore) {
                 bestScore = score;
+                bestMatch = {p};
+            } else if (std::abs(score - bestScore) < 0.0001f) { 
+                bestMatch.push_back(p);
             }
         }
 

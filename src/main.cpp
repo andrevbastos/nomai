@@ -21,9 +21,14 @@ TODO
 
 bool handleArguments(int argc, char* argv[]);
 bool isFlag(const char* arg);
+bool isDirectory(const std::string& target);
+void setup();
+void add(std::string target);
+void batch(std::string target);
+void remove(std::string target);
+void cascade(std::string target);
 
 int main(int argc, char* argv[]) {
-    
     if (handleArguments(argc, argv)) {
         nomai::Tui app;
         app.run();
@@ -49,23 +54,16 @@ bool handleArguments(int argc, char* argv[]) {
                     target = argv[i];
                 } else {
                     std::cout << "Unexpected argument: " << argv[i] << std::endl;
-                    return 1;
+                    return 0;
                 }
             }
         }
 
         if (flags.empty()) {
-            if (target.empty()) {
-                std::cout << "Error: No target specified to run." << std::endl;
-                return 1;
-            }
-
             fs::path possiblePath(target);
 
             bool isPath = false;
-            if (fs::exists(possiblePath) && fs::is_directory(possiblePath)) {
-                isPath = true;
-            } else if (target.find(fs::path::preferred_separator) != std::string::npos || target.find('/') != std::string::npos) {
+            if (isDirectory(target) || (target.find(fs::path::preferred_separator) != std::string::npos || target.find('/') != std::string::npos) ) {
                 isPath = true;
             }
 
@@ -85,119 +83,159 @@ bool handleArguments(int argc, char* argv[]) {
                 std::cout << "-h / --help: Show this help message." << std::endl;
                 std::cout << "-v / --version: Get current version." << std::endl;
                 std::cout << "-s / --setup: Setup nomai environment." << std::endl;
+                std::cout << "-d / --default: Set default settings." << std::endl;
                 std::cout << "-a / --add: Add a new project." << std::endl;
                 std::cout << "-b / --batch: Recursively add all projects in a directory." << std::endl;
                 std::cout << "-r / --remove: Remove a project." << std::endl;
                 std::cout << "-c / --cascade: Recursively remove all projects in a directory." << std::endl;
-                return 0;
-
             } else if (flag == "-s" || flag == "--setup") {
-                nomai::setup();
-                return 0;
+                setup();
 
             } else if (flag == "-d" || flag == "--default") {
                 std::cout << "Set default setting." << std::endl;
-                return 0;
 
             } else if (flag == "-a" || flag == "--add") {
-                if (target.empty()) {
-                    std::cout << "Error: No target specified for registration." << std::endl;
-                    return 1;
-                }
-
-                fs::path targetPath(target);
-
-                if (!targetPath.has_filename()) {
-                    targetPath = targetPath.parent_path();
-                }
-                nomai::Project newProject(targetPath.filename().string(), targetPath.string(), 50, std::chrono::system_clock::now(), "code");
-                
-                if (nomai::registerProject(newProject)) {
-                    std::cout << "Project registered successfully: " << target << std::endl;
-                    return 0;
-                } else {
-                    std::cout << "Failed to register project: " << target << std::endl;
-                    return 1;
-                }
+                add(target);
 
             } else if (flag == "-b" || flag == "--batch") {
-                if (target.empty()) {
-                    std::cout << "Error: No target directory specified for recursive registration." << std::endl;
-                    return 1;
-                }
-
-                if (!fs::is_directory(target)) {
-                    std::cout << "Error: Target is not a directory: " << target << std::endl;
-                    return 1;
-                }
-
-                for (auto entry : fs::directory_iterator(target)) {
-                    if (entry.is_directory()) {
-                        nomai::Project newProject(entry.path().filename().string(), entry.path().string(), 50, std::chrono::system_clock::now(), "code");
-                        if (nomai::registerProject(newProject)) {
-                            std::cout << "Project registered successfully: " << entry.path() << std::endl;
-                        } else {
-                            std::cout << "Failed to register project: " << entry.path() << std::endl;
-                        }
-                    }
-                }
-                return 0;
+                batch(target);
 
             } else if (flag == "-r" || flag == "--remove") {
-                if (target.empty()) {
-                    std::cout << "Error: No target specified for removal." << std::endl;
-                    return 1;
-                }
-
-                fs::path targetPath(target);
-                if (!targetPath.has_filename()) {
-                    targetPath = targetPath.parent_path();
-                }
-
-                if (nomai::removeProject(targetPath.string())) {
-                    std::cout << "Project removed successfully: " << target << std::endl;
-                    return 0;
-                } else {
-                    std::cout << "Failed to remove project: " << target << std::endl;
-                    return 1;
-                }
-                return 1;
+                remove(target);
 
             } else if (flag == "-c" || flag == "--cascade") {
-                if (target.empty()) {
-                    std::cout << "Error: No target specified for removal." << std::endl;
-                    return 1;
-                }
-
-                fs::path targetPath(target);
-
-                if (!targetPath.has_filename()) {
-                    targetPath = targetPath.parent_path();
-                }
-
-                for (auto entry : fs::directory_iterator(target)) {
-                    if (entry.is_directory()) {
-                        if (nomai::removeProject(entry.path().string())) {
-                            std::cout << "Project removed successfully: " << entry.path() << std::endl;
-                        } else {
-                            std::cout << "Failed to remove project: " << entry.path() << std::endl;
-                        }
-                    }
-                }
-
-                return 0;
+                cascade(target);
                 
             } else {
                 std::cout << "Unknown flag: " << flag << std::endl;
-                return 1;
             }
         }
     }
-    
-    return 1;
+
+    return 0;
 };
 
-bool isFlag(const char* arg) {
+inline bool isFlag(const char* arg) {
     std::string strArg(arg);
     return strArg.rfind("-", 0) == 0;
+};
+
+inline bool isDirectory(const std::string& target) {
+    return target.empty() || std::filesystem::is_directory(target);
+};
+
+void setup() {
+    namespace fs = std::filesystem;
+
+    std::cout << "[Nomai] Initializing setup..." << std::endl;
+    fs::path home = fs::path(getenv("HOME"));
+    fs::path corePath = home / ".nomai";
+    fs::path registryPath = fs::path(getenv("HOME")) / ".nomai" / "registry.json";
+    
+    if (!fs::exists(corePath)) {
+        fs::create_directory(corePath);
+        std::cout << "[Info] Created core directory: " << corePath << std::endl;
+    }
+
+    if (!fs::exists(registryPath)) {
+        std::ofstream newFile(registryPath);
+        newFile << "[]"; 
+        newFile.close();
+        std::cout << "[Info] Created registry file: " << registryPath << std::endl;
+    } else {
+        std::ifstream file(registryPath);
+        if (file.peek() == std::ifstream::traits_type::eof()) {
+            std::ofstream fixFile(registryPath);
+            fixFile << "[]";
+        }
+    }
+    
+    std::cout << "[Nomai] Setup completed." << std::endl;
+};
+
+void add(std::string target) {
+    namespace fs = std::filesystem;
+
+    if (!isDirectory(target)) {
+        std::cout << "Error: No such directory." << target << std::endl;
+        return;
+    }
+
+    fs::path targetPath(target);
+
+    if (!targetPath.has_filename()) {
+        targetPath = targetPath.parent_path();
+    }
+    nomai::Project newProject(targetPath.filename().string(), targetPath.string(), 50, std::chrono::system_clock::now(), "code");
+    
+    if (nomai::registerProject(newProject)) {
+        std::cout << "Project registered successfully: " << target << std::endl;
+    } else {
+        std::cout << "Failed to register project: " << target << std::endl;
+    }
+};
+
+void batch(std::string target) {
+    namespace fs = std::filesystem;
+    
+    if (!isDirectory(target)) {
+        std::cout << "Error: No such directory." << target << std::endl;
+        return;
+    }
+
+    for (auto entry : fs::directory_iterator(target)) {
+        if (entry.is_directory()) {
+            nomai::Project newProject(entry.path().filename().string(), entry.path().string(), 50, std::chrono::system_clock::now(), "code");
+            if (nomai::registerProject(newProject)) {
+                std::cout << "Project registered successfully: " << entry.path() << std::endl;
+            } else {
+                std::cout << "Failed to register project: " << entry.path() << std::endl;
+            }
+        }
+    }
+};
+
+void remove(std::string target) {
+    namespace fs = std::filesystem;
+
+    if (!isDirectory(target)) {
+        std::cout << "Error: No such directory." << target << std::endl;
+        return;
+    }
+
+    fs::path targetPath(target);
+    if (!targetPath.has_filename()) {
+        targetPath = targetPath.parent_path();
+    }
+
+    if (nomai::removeProject(targetPath.string())) {
+        std::cout << "Project removed successfully: " << target << std::endl;
+    } else {
+        std::cout << "Failed to remove project: " << target << std::endl;
+    }
+};
+
+void cascade(std::string target) {
+    namespace fs = std::filesystem;
+
+    if (!isDirectory(target)) {
+        std::cout << "Error: No such directory." << target << std::endl;
+        return;
+    }
+
+    fs::path targetPath(target);
+
+    if (!targetPath.has_filename()) {
+        targetPath = targetPath.parent_path();
+    }
+
+    for (auto entry : fs::directory_iterator(target)) {
+        if (entry.is_directory()) {
+            if (nomai::removeProject(entry.path().string())) {
+                std::cout << "Project removed successfully: " << entry.path() << std::endl;
+            } else {
+                std::cout << "Failed to remove project: " << entry.path() << std::endl;
+            }
+        }
+    }
 };

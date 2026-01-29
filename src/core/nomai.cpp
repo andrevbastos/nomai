@@ -8,33 +8,6 @@ namespace nomai {
         return fs::path(getenv("HOME")) / ".nomai" / "registry.json";
     }
 
-    void setup() {
-        std::cout << "[Nomai] Initializing setup..." << std::endl;
-        fs::path home = fs::path(getenv("HOME"));
-        fs::path corePath = home / ".nomai";
-        fs::path registryPath = getRegistryPath();
-        
-        if (!fs::exists(corePath)) {
-            fs::create_directory(corePath);
-            std::cout << "[Info] Created core directory: " << corePath << std::endl;
-        }
-
-        if (!fs::exists(registryPath)) {
-            std::ofstream newFile(registryPath);
-            newFile << "[]"; 
-            newFile.close();
-            std::cout << "[Info] Created registry file: " << registryPath << std::endl;
-        } else {
-            std::ifstream file(registryPath);
-            if (file.peek() == std::ifstream::traits_type::eof()) {
-                std::ofstream fixFile(registryPath);
-                fixFile << "[]";
-            }
-        }
-        
-        std::cout << "[Nomai] Setup completed." << std::endl;
-    }
-
     bool registerProject(const Project& project) {
         fs::path registryPath = getRegistryPath();
         json registryJson;
@@ -64,7 +37,7 @@ namespace nomai {
             
             if (existingPath == newPath) {
                 std::cout << "[Info] Project already registered: " << project.getPath() << std::endl;
-                return false;
+                return 0;
             }
         }
 
@@ -74,7 +47,7 @@ namespace nomai {
         json outJson = projectsVector;
         outFile << outJson.dump(4);
         
-        return true;
+        return 1;
     }
 
     bool removeProject(const std::string& projectPath) {
@@ -83,7 +56,7 @@ namespace nomai {
         
         if (!fs::exists(registryPath)) {
             std::cerr << "[Error] Registry file does not exist." << std::endl;
-            return false;
+            return 0;
         }
 
         std::ifstream registryFile(registryPath);
@@ -91,41 +64,41 @@ namespace nomai {
             registryFile >> registryJson;
         } catch (json::parse_error& e) {
             std::cerr << "[Error] Corrupted registry." << std::endl;
-            return false;
+            return 0;
         }
 
         if (!registryJson.is_array()) {
             std::cerr << "[Error] Invalid registry format." << std::endl;
-            return false;
+            return 0;
         }
 
         auto projectsVector = registryJson.get<std::vector<Project>>();
         fs::path targetPath = fs::path(projectPath).lexically_normal();
-        bool found = false;
+        bool found = 0;
 
         projectsVector.erase(
             std::remove_if(projectsVector.begin(), projectsVector.end(),
                 [&](const Project& proj) {
                     fs::path existingPath = fs::path(proj.getPath()).lexically_normal();
                     if (existingPath == targetPath) {
-                        found = true;
-                        return true;
+                        found = 1;
+                        return 1;
                     }
-                    return false;
+                    return 0;
                 }),
             projectsVector.end()
         );
 
         if (!found) {
             std::cout << "[Info] Project not found in registry: " << projectPath << std::endl;
-            return false;
+            return 0;
         }
 
         std::ofstream outFile(registryPath);
         json outJson = projectsVector;
         outFile << outJson.dump(4);
         
-        return true;
+        return 1;
     }
 
     bool updateRegisteredProject(const Project& project) {
@@ -134,7 +107,7 @@ namespace nomai {
         
         if (!fs::exists(registryPath)) {
             std::cerr << "[Error] Registry file does not exist." << std::endl;
-            return false;
+            return 0;
         }
 
         std::ifstream registryFile(registryPath);
@@ -142,37 +115,37 @@ namespace nomai {
             registryFile >> registryJson;
         } catch (json::parse_error& e) {
             std::cerr << "[Error] Corrupted registry." << std::endl;
-            return false;
+            return 0;
         }
 
         if (!registryJson.is_array()) {
             std::cerr << "[Error] Invalid registry format." << std::endl;
-            return false;
+            return 0;
         }
 
         auto projectsVector = registryJson.get<std::vector<Project>>();
         fs::path targetPath = fs::path(project.getPath()).lexically_normal();
-        bool found = false;
+        bool found = 0;
 
         for (auto& existingProject : projectsVector) {
             fs::path existingPath = fs::path(existingProject.getPath()).lexically_normal();
             if (existingPath == targetPath) {
                 existingProject = project;
-                found = true;
+                found = 1;
                 break;
             }
         }
 
         if (!found) {
             std::cout << "[Info] Project not found in registry: " << project.getPath() << std::endl;
-            return false;
+            return 0;
         }
 
         std::ofstream outFile(registryPath);
         json outJson = projectsVector;
         outFile << outJson.dump(4);
         
-        return true;
+        return 1;
     }
 
     bool updateAllRegisteredProjects(const std::vector<Project>& projects) {
@@ -180,23 +153,24 @@ namespace nomai {
         
         if (!fs::exists(registryPath)) {
             std::cerr << "[Error] Registry file does not exist." << std::endl;
-            return false;
+            return 0;
         }
 
         std::ofstream outFile(registryPath);
         json outJson = projects;
         outFile << outJson.dump(4);
         
-        return true;
+        return 1;
     }
 
     bool runProjectWorkspace(const Project& project) {
-        std::string ide = project.getIde();
         std::string path = project.getPath();
+        std::string ide = project.getIde();
+        std::vector<std::string> auxApps = project.getAuxApps();
 
         if (ide.empty() || path.empty()) {
             std::cerr << "[Error] IDE or project path is empty." << std::endl;
-            return false;
+            return 0;
         }
 
         std::string command = ide + " " + path + " &";
@@ -204,10 +178,21 @@ namespace nomai {
 
         if (result != 0) {
             std::cerr << "[Error] Failed to launch IDE: " << ide << std::endl;
-            return false;
+            return 0;
         }
 
-        return true;
+        if (!auxApps.empty()) {
+            for (const auto& auxApp : auxApps) {
+                std::string auxCommand = auxApp + " " + path + " &";
+                int result = system(auxCommand.c_str());
+                if (result != 0) {
+                    std::cerr << "[Error] Failed to launch Auxiliar App: " << auxApp << std::endl;
+                    return 0;
+                }
+            }
+        }
+
+        return 1;
     }
 
     std::vector<Project> getRegisteredProjects() {
