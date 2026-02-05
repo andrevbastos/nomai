@@ -23,7 +23,6 @@ cmake_install.cmake
 install_manifest.txt
 CTestTestfile.cmake
 Makefile
-cmake/
 .vscode/
 
 # Exportação de comandos de compilação (usado por LSPs como clangd)
